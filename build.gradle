@@ -1,0 +1,22 @@
+def sciaps_common = project(':libraries:Common')
+
+project.ext.set('sciaps_common', sciaps_common)
+
+buildscript {
+    repositories {
+        maven {
+            url "http://jenkins2.sciaps.local/nexus/content/groups/public/"
+        }
+    }
+}
+
+allprojects {
+    repositories {
+        mavenLocal()
+        repositories {
+            maven {
+                url "http://jenkins2.sciaps.local/nexus/content/groups/public/"
+            }
+        }
+    }
+}

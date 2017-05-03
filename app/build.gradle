@@ -1,0 +1,7 @@
+apply plugin: 'java'
+
+
+dependencies {
+    compile project.sciaps_common
+    compile 'com.dev-smart:devsmart-core:0.1.5'
+}
