@@ -10,16 +10,17 @@ import com.sciaps.common.data.SpectrometerCalibration;
 import com.sciaps.common.data.flatbuff.*;
 import com.sciaps.common.libs.LIBAnalysisResult;
 import com.sciaps.common.spectrum.LIBZPixelSpectrum;
+import org.apache.commons.cli.*;
 import org.apache.commons.math3.analysis.polynomials.PolynomialFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class LIBZResultRecovery {
 
@@ -137,7 +138,74 @@ public class LIBZResultRecovery {
     }
 
 
+    private static final Pattern REGEX_RESULTFILENAME = Pattern.compile("alloyresult([0-9]+)\\.json");
+
+    private static int getResultNum(File f) {
+        final String filename = f.getName();
+        Matcher m = REGEX_RESULTFILENAME.matcher(filename);
+        if(m.find()) {
+            return Integer.parseInt(m.group(1));
+        } else {
+            return -1;
+        }
+    }
+
+    private static void doRecovery(final File rootDir, File output_csv) {
+        int maxResultNum = 0;
+        for(File f : rootDir.listFiles()) {
+            maxResultNum = Math.max(maxResultNum, getResultNum(f));
+        }
+
+        for(int i=0;i<=maxResultNum;i++) {
+            File f = new File(rootDir, String.format("alloyresult%d.json", i));
+            if(f.exists()) {
+                try {
+                    InputStream in = new FileInputStream(f);
+                    LIBAnalysisResult r = loadResult(in);
+                    in.close();
+                } catch (Exception e) {
+                    LOGGER.error("", e);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args) {
 
+        Options options = new Options();
+        options.addOption(Option.builder("d")
+                .hasArg()
+                .argName("libsresults")
+                .required()
+                .build());
+
+        options.addOption(Option.builder("o")
+                .hasArg()
+                .argName("output.csv")
+                .build());
+
+        CommandLineParser parser = new DefaultParser();
+        try {
+            CommandLine line = parser.parse(options, args);
+
+            File libsresults_root = new File(line.getOptionValue("d"));
+            File output_csv = new File(line.getOptionValue("o", "output.csv"));
+            doRecovery(libsresults_root, output_csv);
+
+
+        } catch (ParseException e) {
+            System.err.println(e.getMessage());
+
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp( "LIBZResultRecovery", options );
+
+            System.exit(-1);
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+            System.exit(-1);
+        }
+
     }
+
+
 }
