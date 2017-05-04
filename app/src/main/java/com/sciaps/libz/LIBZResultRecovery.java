@@ -8,6 +8,7 @@ import com.sciaps.common.Global;
 import com.sciaps.common.algorithms.GradeMatchRanker;
 import com.sciaps.common.calculation.libs.EmpiricalCurveCalc;
 import com.sciaps.common.calculation.libs.EmpiricalResult;
+import com.sciaps.common.data.ChemResult;
 import com.sciaps.common.data.SpectrometerCalibration;
 import com.sciaps.common.data.flatbuff.*;
 import com.sciaps.common.libs.LIBAnalysisResult;
@@ -161,13 +162,15 @@ public class LIBZResultRecovery {
     private static final int COLUMN_MATCH1 = 3;
     private static final int COLUMN_MATCH2 = 4;
     private static final int COLUMN_MATCH3 = 5;
+    private static final int COLUMN_MATCH4 = 6;
+    private static final int COLUMN_MATCH5 = 7;
     private static final Map<AtomicElement, Integer> COLUMN_CHEM_MAP;
     private static final DateFormat DATE_FORMAT = SimpleDateFormat.getDateTimeInstance();
 
     static {
         ImmutableMap.Builder<AtomicElement, Integer> builder = new ImmutableMap.Builder<AtomicElement, Integer>();
 
-        int column = 6;
+        int column = 8;
         builder.put(AtomicElement.Silicon, column++);
         builder.put(AtomicElement.Iron, column++);
         builder.put(AtomicElement.Copper, column++);
@@ -192,13 +195,15 @@ public class LIBZResultRecovery {
 
     private static void doRecovery(final File rootDir, File output_csv) throws IOException {
         CSVWriter csvWriter = new CSVWriter(new FileWriter(output_csv));
-        String[] line = new String[6 + COLUMN_CHEM_MAP.size()];
+        String[] line = new String[8 + COLUMN_CHEM_MAP.size()];
         line[COLUMN_DATE] = "Date";
         line[COLUMN_TESTNAME] = "Test Name";
         line[COLUMN_TESTNUM] = "Test #";
         line[COLUMN_MATCH1] = "Match #1";
         line[COLUMN_MATCH2] = "Match #2";
         line[COLUMN_MATCH3] = "Match #3";
+        line[COLUMN_MATCH4] = "Match #4";
+        line[COLUMN_MATCH5] = "Match #5";
         for(Map.Entry<AtomicElement, Integer> e : COLUMN_CHEM_MAP.entrySet()) {
             line[e.getValue()] = String.format("%s (%%)", e.getKey().symbol);
         }
@@ -241,11 +246,24 @@ public class LIBZResultRecovery {
                         line[COLUMN_MATCH3] = r.mResult.gradeRanks.get(2).grade.getDisplayName();
                     }
 
+                    if(r.mResult.gradeRanks != null && r.mResult.gradeRanks.size() >= 4) {
+                        line[COLUMN_MATCH4] = r.mResult.gradeRanks.get(3).grade.getDisplayName();
+                    }
+
+                    if(r.mResult.gradeRanks != null && r.mResult.gradeRanks.size() >= 5) {
+                        line[COLUMN_MATCH5] = r.mResult.gradeRanks.get(4).grade.getDisplayName();
+                    }
+
                     if(r.mResult.chemResults != null) {
                         for(EmpiricalCurveCalc.EmpiricalCurveResult chemR : r.mResult.chemResults) {
                             Integer columnIndex = COLUMN_CHEM_MAP.get(chemR.element);
                             if(columnIndex != null) {
-                                line[columnIndex] = String.format("%f", chemR.percent);
+                                if(chemR.percent < 0 || chemR.type == ChemResult.TYPE_LESSLOD) {
+                                    line[columnIndex] = "0";
+                                } else {
+                                    line[columnIndex] = String.format("%f", chemR.percent);
+                                }
+
                             }
                         }
                     }
