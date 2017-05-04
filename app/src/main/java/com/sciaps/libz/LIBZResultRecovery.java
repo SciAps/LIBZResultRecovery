@@ -1,6 +1,8 @@
 package com.sciaps.libz;
 
+import au.com.bytecode.opencsv.CSVWriter;
 import com.devsmart.IOUtils;
+import com.google.common.collect.ImmutableMap;
 import com.sciaps.common.AtomicElement;
 import com.sciaps.common.Global;
 import com.sciaps.common.algorithms.GradeMatchRanker;
@@ -17,8 +19,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -150,24 +155,111 @@ public class LIBZResultRecovery {
         }
     }
 
-    private static void doRecovery(final File rootDir, File output_csv) {
+    private static final int COLUMN_DATE = 0;
+    private static final int COLUMN_TESTNAME = 1;
+    private static final int COLUMN_TESTNUM = 2;
+    private static final int COLUMN_MATCH1 = 3;
+    private static final int COLUMN_MATCH2 = 4;
+    private static final int COLUMN_MATCH3 = 5;
+    private static final Map<AtomicElement, Integer> COLUMN_CHEM_MAP;
+    private static final DateFormat DATE_FORMAT = SimpleDateFormat.getDateTimeInstance();
+
+    static {
+        ImmutableMap.Builder<AtomicElement, Integer> builder = new ImmutableMap.Builder<AtomicElement, Integer>();
+
+        int column = 6;
+        builder.put(AtomicElement.Silicon, column++);
+        builder.put(AtomicElement.Iron, column++);
+        builder.put(AtomicElement.Copper, column++);
+        builder.put(AtomicElement.Manganese, column++);
+        builder.put(AtomicElement.Magnesium, column++);
+        builder.put(AtomicElement.Chromium, column++);
+        builder.put(AtomicElement.Nickel, column++);
+        builder.put(AtomicElement.Zinc, column++);
+        builder.put(AtomicElement.Titanium, column++);
+        builder.put(AtomicElement.getElementBySymbol("Ag"), column++);
+        builder.put(AtomicElement.getElementBySymbol("Bi"), column++);
+        builder.put(AtomicElement.getElementBySymbol("Li"), column++);
+        builder.put(AtomicElement.getElementBySymbol("Pb"), column++);
+        builder.put(AtomicElement.getElementBySymbol("Sn"), column++);
+        builder.put(AtomicElement.getElementBySymbol("V"), column++);
+        builder.put(AtomicElement.getElementBySymbol("Zr"), column++);
+        builder.put(AtomicElement.getElementBySymbol("Al"), column++);
+
+        COLUMN_CHEM_MAP = builder.build();
+
+    }
+
+    private static void doRecovery(final File rootDir, File output_csv) throws IOException {
+        CSVWriter csvWriter = new CSVWriter(new FileWriter(output_csv));
+        String[] line = new String[6 + COLUMN_CHEM_MAP.size()];
+        line[COLUMN_DATE] = "Date";
+        line[COLUMN_TESTNAME] = "Test Name";
+        line[COLUMN_TESTNUM] = "Test #";
+        line[COLUMN_MATCH1] = "Match #1";
+        line[COLUMN_MATCH2] = "Match #2";
+        line[COLUMN_MATCH3] = "Match #3";
+        for(Map.Entry<AtomicElement, Integer> e : COLUMN_CHEM_MAP.entrySet()) {
+            line[e.getValue()] = String.format("%s (%%)", e.getKey().symbol);
+        }
+
+        csvWriter.writeNext(line);
+
+
+
         int maxResultNum = 0;
         for(File f : rootDir.listFiles()) {
             maxResultNum = Math.max(maxResultNum, getResultNum(f));
         }
 
-        for(int i=0;i<=maxResultNum;i++) {
-            File f = new File(rootDir, String.format("alloyresult%d.json", i));
+        for(int resultNum=0;resultNum<=maxResultNum;resultNum++) {
+            File f = new File(rootDir, String.format("alloyresult%d.json", resultNum));
             if(f.exists()) {
                 try {
+
+                    for(int i=0;i<line.length;i++){
+                        line[i] = "";
+                    }
+
                     InputStream in = new FileInputStream(f);
                     LIBAnalysisResult r = loadResult(in);
                     in.close();
+
+                    line[COLUMN_DATE] = DATE_FORMAT.format(r.mTime);
+                    line[COLUMN_TESTNAME] = r.mTitle;
+                    line[COLUMN_TESTNUM] = Integer.toString(resultNum);
+
+                    if(r.mResult.gradeRanks != null && r.mResult.gradeRanks.size() >= 1) {
+                        line[COLUMN_MATCH1] = r.mResult.gradeRanks.get(0).grade.getDisplayName();
+                    }
+
+                    if(r.mResult.gradeRanks != null && r.mResult.gradeRanks.size() >= 2) {
+                        line[COLUMN_MATCH2] = r.mResult.gradeRanks.get(1).grade.getDisplayName();
+                    }
+
+                    if(r.mResult.gradeRanks != null && r.mResult.gradeRanks.size() >= 3) {
+                        line[COLUMN_MATCH3] = r.mResult.gradeRanks.get(2).grade.getDisplayName();
+                    }
+
+                    if(r.mResult.chemResults != null) {
+                        for(EmpiricalCurveCalc.EmpiricalCurveResult chemR : r.mResult.chemResults) {
+                            Integer columnIndex = COLUMN_CHEM_MAP.get(chemR.element);
+                            if(columnIndex != null) {
+                                line[columnIndex] = String.format("%f", chemR.percent);
+                            }
+                        }
+                    }
+
+                    csvWriter.writeNext(line);
+
+
                 } catch (Exception e) {
                     LOGGER.error("", e);
                 }
             }
         }
+
+        csvWriter.close();
     }
 
     public static void main(String[] args) {
