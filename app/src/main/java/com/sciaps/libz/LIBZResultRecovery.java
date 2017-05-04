@@ -165,37 +165,50 @@ public class LIBZResultRecovery {
     private static final int COLUMN_MATCH4 = 6;
     private static final int COLUMN_MATCH5 = 7;
     private static final Map<AtomicElement, Integer> COLUMN_CHEM_MAP;
+    private static final Map<AtomicElement, Integer> COLUMN_CHEM_UNCERT_MAP;
     private static final DateFormat DATE_FORMAT = SimpleDateFormat.getDateTimeInstance();
 
+    static void addElementColumn(AtomicElement e,
+                                 ImmutableMap.Builder<AtomicElement, Integer> chemColumnBuilder,
+                                 ImmutableMap.Builder<AtomicElement, Integer> chemUncertColumnBuilder,
+                                 int[] columnIndex) {
+
+        chemColumnBuilder.put(e, columnIndex[0]++);
+        chemUncertColumnBuilder.put(e, columnIndex[0]++);
+    }
+
     static {
-        ImmutableMap.Builder<AtomicElement, Integer> builder = new ImmutableMap.Builder<AtomicElement, Integer>();
+        ImmutableMap.Builder<AtomicElement, Integer> chemColumnBuilder = new ImmutableMap.Builder<AtomicElement, Integer>();
+        ImmutableMap.Builder<AtomicElement, Integer> chemUncertColumnBuilder = new ImmutableMap.Builder<AtomicElement, Integer>();
 
-        int column = 8;
-        builder.put(AtomicElement.Silicon, column++);
-        builder.put(AtomicElement.Iron, column++);
-        builder.put(AtomicElement.Copper, column++);
-        builder.put(AtomicElement.Manganese, column++);
-        builder.put(AtomicElement.Magnesium, column++);
-        builder.put(AtomicElement.Chromium, column++);
-        builder.put(AtomicElement.Nickel, column++);
-        builder.put(AtomicElement.Zinc, column++);
-        builder.put(AtomicElement.Titanium, column++);
-        builder.put(AtomicElement.getElementBySymbol("Ag"), column++);
-        builder.put(AtomicElement.getElementBySymbol("Bi"), column++);
-        builder.put(AtomicElement.getElementBySymbol("Li"), column++);
-        builder.put(AtomicElement.getElementBySymbol("Pb"), column++);
-        builder.put(AtomicElement.getElementBySymbol("Sn"), column++);
-        builder.put(AtomicElement.getElementBySymbol("V"), column++);
-        builder.put(AtomicElement.getElementBySymbol("Zr"), column++);
-        builder.put(AtomicElement.getElementBySymbol("Al"), column++);
+        int[] columnIndex = new int[]{8};
 
-        COLUMN_CHEM_MAP = builder.build();
+        addElementColumn(AtomicElement.Silicon, chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.Iron, chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.Copper, chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.Manganese, chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.Magnesium, chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.Chromium, chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.Nickel, chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.Zinc, chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.Titanium, chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.getElementBySymbol("Ag"), chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.getElementBySymbol("Bi"), chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.getElementBySymbol("Li"), chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.getElementBySymbol("Pb"), chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.getElementBySymbol("Sn"), chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.getElementBySymbol("V"), chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.getElementBySymbol("Zr"), chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+        addElementColumn(AtomicElement.getElementBySymbol("Al"), chemColumnBuilder, chemUncertColumnBuilder, columnIndex);
+
+        COLUMN_CHEM_MAP = chemColumnBuilder.build();
+        COLUMN_CHEM_UNCERT_MAP = chemUncertColumnBuilder.build();
 
     }
 
     private static void doRecovery(final File rootDir, File output_csv) throws IOException {
         CSVWriter csvWriter = new CSVWriter(new FileWriter(output_csv));
-        String[] line = new String[8 + COLUMN_CHEM_MAP.size()];
+        String[] line = new String[8 + COLUMN_CHEM_MAP.size() + COLUMN_CHEM_UNCERT_MAP.size()];
         line[COLUMN_DATE] = "Date";
         line[COLUMN_TESTNAME] = "Test Name";
         line[COLUMN_TESTNUM] = "Test #";
@@ -206,6 +219,10 @@ public class LIBZResultRecovery {
         line[COLUMN_MATCH5] = "Match #5";
         for(Map.Entry<AtomicElement, Integer> e : COLUMN_CHEM_MAP.entrySet()) {
             line[e.getValue()] = String.format("%s (%%)", e.getKey().symbol);
+        }
+
+        for(Map.Entry<AtomicElement, Integer> e : COLUMN_CHEM_UNCERT_MAP.entrySet()) {
+            line[e.getValue()] = String.format("%s+/- (%%)", e.getKey().symbol);
         }
 
         csvWriter.writeNext(line);
@@ -256,12 +273,14 @@ public class LIBZResultRecovery {
 
                     if(r.mResult.chemResults != null) {
                         for(EmpiricalCurveCalc.EmpiricalCurveResult chemR : r.mResult.chemResults) {
-                            Integer columnIndex = COLUMN_CHEM_MAP.get(chemR.element);
-                            if(columnIndex != null) {
+                            Integer chemColumnIndex = COLUMN_CHEM_MAP.get(chemR.element);
+                            Integer chemUncertColumnIndex = COLUMN_CHEM_UNCERT_MAP.get(chemR.element);
+                            if(chemColumnIndex != null) {
                                 if(chemR.percent < 0 || chemR.type == ChemResult.TYPE_LESSLOD) {
-                                    line[columnIndex] = "0";
+                                    line[chemColumnIndex] = "0";
                                 } else {
-                                    line[columnIndex] = String.format("%f", chemR.percent);
+                                    line[chemColumnIndex] = String.format("%f", chemR.percent);
+                                    line[chemUncertColumnIndex] = String.format("%f", chemR.error * 2);
                                 }
 
                             }
